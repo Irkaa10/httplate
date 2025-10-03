@@ -71,48 +71,6 @@ type Config struct {
 	IdleTimeout  time.Duration
 }
 
-func loggingMiddleware(logger *log.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Wrap ResponseWriter to capture status code
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-		next.ServeHTTP(wrapped, r)
-
-		logger.Printf(
-			"%s %s %d %s",
-			r.Method,
-			r.URL.Path,
-			wrapped.statusCode,
-			time.Since(start),
-		)
-	})
-}
-
-func recoveryMiddleware(logger *log.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				logger.Printf("Panic recovered: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-// responseWriter wraps http.ResponseWriter to capture status code
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
 func registerRoutes(mux *http.ServeMux, logger *log.Logger, config *Config) {
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", homeHandler)
@@ -130,11 +88,4 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte("Welcome to the API"))
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
